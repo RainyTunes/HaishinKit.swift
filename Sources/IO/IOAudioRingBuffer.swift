@@ -75,6 +75,9 @@ final class IOAudioRingBuffer {
         }
         skip = max(Int(targetSampleTime - sampleTime), 0)
         sampleTime += Int64(skip)
+        if sampleBuffer.formatDescription?.mediaSubType == .linearPCM && sampleBuffer.formatDescription?.mediaType == .audio {
+//            NSLog("IOAudioRingBuffer=\(Unmanaged.passUnretained(self).toOpaque()) sampleTime=\(sampleTime) skip = \(skip)  length=\(sampleBuffer.dataBuffer?.dataLength ?? 0)")
+        }
         append(inputBuffer)
     }
 

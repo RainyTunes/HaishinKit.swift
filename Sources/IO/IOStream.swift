@@ -369,6 +369,210 @@ open class IOStream: NSObject {
         }
     }
     #endif
+    
+    func getURL() -> URL? {
+        return Bundle.main.url(forResource: "testVideoPCM", withExtension: "mov")
+    }
+
+    let queue = DispatchQueue(label: "IOStream")
+
+    private let semaphore = DispatchSemaphore(value: 1)
+    var shouldPlay = true {
+        didSet {
+            if shouldPlay {
+                semaphore.signal() // 发送信号以继续播放
+            }
+        }
+    }
+
+    public func toggleAudio() {
+       shouldPlay.toggle()
+    }
+
+    public func pushAudio() {
+        guard let fileURL = self.getURL() else { return }
+        // 创建 AVAsset 并准备 asset reader
+        let asset = AVAsset(url: fileURL)
+        let assetReader = try? AVAssetReader(asset: asset)
+        do {
+            
+        } catch {
+            print("Error creating asset reader: \(error)")
+            return
+        }
+
+        // 获取音频轨道
+        guard let audioTrack = asset.tracks(withMediaType: .audio).first else {
+            print("Audio track not found.")
+            return
+        }
+
+        // 设置读取配置
+        let audioOutputSettings: [String: Any] = [
+            AVFormatIDKey: Int(kAudioFormatLinearPCM),
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsFloatKey: false,
+            AVLinearPCMBitDepthKey: 16
+        ]
+
+        let audioInput = AVAssetReaderTrackOutput(track: audioTrack, outputSettings: audioOutputSettings)
+        if let reader = assetReader {
+            reader.add(audioInput)
+            reader.startReading()
+
+            mixer.audioIO.lockQueue.async { [weak self] in
+                guard let self else {
+                    NSLog("IOStream self error")
+                    return
+                }
+                // 读取音频样本
+                while reader.status == .reading {
+                    if !self.shouldPlay {
+                        self.semaphore.wait() // 等待播放信号
+                    }
+                    if let sampleBuffer = audioInput.copyNextSampleBuffer() {
+                        let targetSampleTime = getTargetSampleTime(sampleBuffer)
+                        NSLog("IOStream append sampleBuffer targetSampleTime = \(targetSampleTime)")
+                        self.append(sampleBuffer, track: 1)
+                    }
+                }
+            }
+
+            if reader.status == .completed {
+                print("Audio processing completed.")
+            }
+        }
+        
+    }
+    
+//    public func testPushAudio_AVAudioBuffer() {
+//        do {
+//            let testVideoURL = Bundle.main.url(forResource: "testVideoPCM", withExtension: "mov")
+//            guard let url = testVideoURL else { return }
+//            let asset = AVAsset(url: url)
+//            let assetReader = try AVAssetReader(asset: asset)
+//            guard let audioTrack = asset.tracks(withMediaType: .audio).first else {
+//                NSLog("IOStream The video file does not contain any audio track.")
+//                return
+//            }
+//            
+//            // 创建一个与音频轨道格式匹配的 AVAudioFormat
+//            let formatDescription = audioTrack.formatDescriptions.first as! CMAudioFormatDescription
+//            
+//            var asbd = CMAudioFormatDescriptionGetStreamBasicDescription(formatDescription)!.pointee
+//            guard let audioFormat = AVAudioFormat(streamDescription: &asbd) else {
+//                NSLog("IOStream Failed to create audio format")
+//                return
+//            }
+//            
+//            let trackOutput = AVAssetReaderTrackOutput(track: audioTrack, outputSettings: nil)
+//            
+//            assetReader.add(trackOutput)
+//            assetReader.startReading()
+//            
+//            
+//            mixer.audioIO.lockQueue.async { [weak self] in
+//                guard let self else {
+//                    NSLog("IOStream self error")
+//                    return
+//                }
+//                while let sampleBuffer = trackOutput.copyNextSampleBuffer() {
+//                    guard let mediaSubType = sampleBuffer.formatDescription?.mediaSubType else {
+//                        NSLog("IOStream mediaSubType error")
+//                        return
+//                    }
+//
+//                    let targetSampleTime = getTargetSampleTime(sampleBuffer)
+//
+//                    guard let audioTime = self.extractAudioTime(from: sampleBuffer) else {
+//                        NSLog("IOStream audioTime error")
+//                        return
+//                    }
+//                    
+//                    guard let audioBuffer = self.scheduleBuffer(sampleBuffer) else {
+//                        NSLog("IOStream audioBuffer error")
+//                        return
+//                    }
+//                    
+//                    NSLog("IOStream append audioBuffer = \(audioTime) audioTime = \(audioTime.sampleTime) targetSampleTime = \(targetSampleTime)")
+//                    self.append(audioBuffer, when: audioTime, track: 1)
+//                }
+//            }
+//            
+//        } catch {
+//            NSLog("IOStream Error reading audio track: \(error.localizedDescription)")
+//        }
+//    }
+
+    private func getTargetSampleTime(_ sampleBuffer: CMSampleBuffer) -> CMTimeValue {
+        let sampleRate = 44100.0
+        let targetSampleTime: CMTimeValue
+        let value = sampleBuffer.presentationTimeStamp.value
+        let timeScale = sampleBuffer.presentationTimeStamp.timescale
+        if timeScale == Int32(sampleRate) {
+            targetSampleTime = sampleBuffer.presentationTimeStamp.value
+        } else {
+            if value != 0 {
+                targetSampleTime = Int64(Double(value) * sampleRate / Double(timeScale))
+            } else {
+                targetSampleTime = 0
+            }
+        }
+        return targetSampleTime
+    }
+
+//    func extractAudioTime(from sampleBuffer: CMSampleBuffer) -> AVAudioTime? {
+//        // 获取样本的呈现时间戳
+//        let presentationTimeStamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+//        let timeInSeconds = CMTimeGetSeconds(presentationTimeStamp)
+//        
+//        // 检查是否有有效的时间戳
+//        if timeInSeconds.isNaN {
+//            NSLog("IOStream timeInSeconds error")
+//            return nil
+//        }
+//        
+//        // 获取音频流的样本率
+//        guard let formatDescription = CMSampleBufferGetFormatDescription(sampleBuffer) else {
+//            NSLog("IOStream formatDescription error")
+//            return nil
+//        }
+//        guard let audioStreamBasicDescription = CMAudioFormatDescriptionGetStreamBasicDescription(formatDescription)?.pointee else {
+//            NSLog("IOStream audioStreamBasicDescription error")
+//            return nil
+//        }
+//        let sampleRate = audioStreamBasicDescription.mSampleRate
+//        
+//        // 创建并返回AVAudioTime
+//        return AVAudioTime(hostTime: UInt64(timeInSeconds * Double(NSEC_PER_SEC)), sampleTime: AVAudioFramePosition(presentationTimeStamp.value), atRate: sampleRate)
+//    }
+    
+//    func scheduleBuffer(_ sampleBuffer: CMSampleBuffer?) -> AVAudioPCMBuffer? {
+//        var sDescr: CMFormatDescription? = nil
+//        if let sampleBuffer = sampleBuffer {
+//            sDescr = CMSampleBufferGetFormatDescription(sampleBuffer)
+//        }
+//        
+//        var numSamples: CMItemCount? = nil
+//        if let sampleBuffer = sampleBuffer {
+//            numSamples = CMSampleBufferGetNumSamples(sampleBuffer)
+//        }
+//        
+//        var avFmt: AVAudioFormat? = nil
+//        avFmt = AVAudioFormat(cmAudioFormatDescription: sDescr!)
+//        var pcmBuffer: AVAudioPCMBuffer? = nil
+//        if let avFmt = avFmt {
+//            pcmBuffer = AVAudioPCMBuffer(pcmFormat: avFmt, frameCapacity: AVAudioFrameCount(UInt(numSamples ?? 0)))
+//        }
+//        
+//        pcmBuffer?.frameLength = AVAudioFrameCount(UInt(numSamples ?? 0))
+//        if let sampleBuffer = sampleBuffer, let mutableAudioBufferList = pcmBuffer?.mutableAudioBufferList {
+//            CMSampleBufferCopyPCMDataIntoAudioBufferList(sampleBuffer, at: 0, frameCount: Int32(numSamples ?? 0), into: mutableAudioBufferList)
+//        }
+//        
+//        return pcmBuffer
+//        
+//    }
 
     /// Appends a CMSampleBuffer.
     /// - Parameters:
