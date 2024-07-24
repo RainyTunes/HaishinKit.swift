@@ -185,10 +185,12 @@ open class IOStream: NSObject {
     /// Specifies the audio mixer settings.
     public var audioMixerSettings: IOAudioMixerSettings {
         get {
-            mixer.audioIO.mixerSettings
+            mixer.audioIO.lockQueue.sync { self.mixer.audioIO.mixerSettings }
         }
         set {
-            mixer.audioIO.mixerSettings = newValue
+            mixer.audioIO.lockQueue.async {
+                self.mixer.audioIO.mixerSettings = newValue
+            }
         }
     }
 
@@ -339,7 +341,7 @@ open class IOStream: NSObject {
     /// You can perform multi-microphone capture by specifying as follows on macOS. Unfortunately, it seems that only one microphone is available on iOS.
     /// ```
     /// stream.isMultiTrackAudioMixingEnabled = true
-    /// 
+    ///
     /// var audios = AVCaptureDevice.devices(for: .audio)
     /// if let device = audios.removeFirst() {
     ///    stream.attachAudio(device, track: 0)
