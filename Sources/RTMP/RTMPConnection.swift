@@ -264,10 +264,12 @@ public class RTMPConnection {
 
     /// Creates a new connection.
     public init() {
+        NSLog("RTMPConnection init")
         addEventListener(.rtmpStatus, selector: #selector(on(status:)))
     }
 
     deinit {
+        NSLog("RTMPConnection deinit")
         timer = nil
         streams.removeAll()
         removeEventListener(.rtmpStatus, selector: #selector(on(status:)))

@@ -263,6 +263,7 @@ open class RTMPStream: IOStream {
 
     /// Creates a new stream.
     public init(connection: RTMPConnection, fcPublishName: String? = nil) {
+        NSLog("RTMPStream init")
         self.connection = connection
         super.init()
         self.fcPublishName = fcPublishName
@@ -276,6 +277,7 @@ open class RTMPStream: IOStream {
     }
 
     deinit {
+        NSLog("RTMPStream deinit")
         mixer.stopRunning()
         removeEventListener(.rtmpStatus, selector: #selector(on(status:)), observer: self)
         connection?.removeEventListener(.rtmpStatus, selector: #selector(on(status:)), observer: self)
