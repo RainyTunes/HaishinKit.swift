@@ -71,7 +71,7 @@ final class IOAudioMixerByMultiTrack: IOAudioMixerConvertible {
         if settings.mainTrack == track {
             inSourceFormat = buffer.formatDescription
         }
-        self.track(for: track)?.append(buffer)
+        self.track(for: track, buffer: buffer)?.append(buffer)
     }
 
     func append(_ track: UInt8, buffer: AVAudioPCMBuffer, when: AVAudioTime) {
@@ -161,7 +161,7 @@ final class IOAudioMixerByMultiTrack: IOAudioMixerConvertible {
         }
     }
 
-    private func track(for id: UInt8) -> IOAudioMixerTrack<IOAudioMixerByMultiTrack>? {
+    private func track(for id: UInt8, buffer: CMSampleBuffer? = nil) -> IOAudioMixerTrack<IOAudioMixerByMultiTrack>? {
         if let track = tracks[id] {
             return track
         }
@@ -174,7 +174,12 @@ final class IOAudioMixerByMultiTrack: IOAudioMixerConvertible {
             track.settings = trackSettings
         }
         tracks[id] = track
-        buffers[id] = .init(outputFormat)
+        guard let buffer, id > 0 else {
+            buffers[id] = .init(outputFormat)
+            return track
+        }
+
+        buffers[id] = .init(outputFormat, bufferCounts: 16 * 1000) // about 5mins
         return track
     }
 }
