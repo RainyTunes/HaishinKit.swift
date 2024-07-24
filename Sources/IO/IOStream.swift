@@ -301,6 +301,7 @@ open class IOStream: NSObject {
     /// Creates an object.
     override public init() {
         super.init()
+        NSLog("IOStream init")
         #if os(iOS) || os(tvOS) || os(visionOS)
         NotificationCenter.default.addObserver(self, selector: #selector(didEnterBackground(_:)), name: UIApplication.didEnterBackgroundNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(willEnterForeground(_:)), name: UIApplication.willEnterForegroundNotification, object: nil)
@@ -308,6 +309,7 @@ open class IOStream: NSObject {
     }
 
     deinit {
+        NSLog("IOStream deinit")
         observers.removeAll()
     }
 
