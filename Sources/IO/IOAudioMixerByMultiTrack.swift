@@ -179,7 +179,7 @@ final class IOAudioMixerByMultiTrack: IOAudioMixerConvertible {
             return track
         }
 
-        buffers[id] = .init(outputFormat, bufferCounts: 16 * 1000) // about 5mins
+        buffers[id] = .init(outputFormat, bufferCounts: 16 * 20) // about 6s
         return track
     }
 }
