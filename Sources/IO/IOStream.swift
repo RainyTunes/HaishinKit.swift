@@ -595,6 +595,71 @@ open class IOStream: NSObject {
         }
     }
 
+    var assetReader: AVAssetReader?
+    var audioInput: AVAssetReaderTrackOutput?
+    let audioQueue = DispatchQueue(label: "audioQueue")
+    var timer: (any DispatchSourceTimer)?
+
+    public func stopAppendAudio() {
+        timer?.cancel()
+        timer = nil
+    }
+
+    public func appendAudio(url: URL) {
+        print("IOStream appendAudio url = \(url)")
+        let asset = AVAsset(url: url)
+        do {
+            assetReader = try? AVAssetReader(asset: asset)
+        } catch {
+            print("IOStream Error creating asset reader: \(error)")
+            return
+        }
+
+        guard let audioTrack = asset.tracks(withMediaType: .audio).first else {
+            print("IOStream Audio track not found.")
+            return
+        }
+
+        let audioOutputSettings: [String: Any] = [
+            AVFormatIDKey: Int(kAudioFormatLinearPCM),
+            AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsFloatKey: false,
+            AVLinearPCMBitDepthKey: 16
+        ]
+
+        audioInput = AVAssetReaderTrackOutput(track: audioTrack, outputSettings: audioOutputSettings)
+        guard let assetReader, let audioInput else {
+            print("IOStream reader = nil")
+            return
+        }
+        assetReader.add(audioInput)
+        assetReader.startReading()
+
+        timer = DispatchSource.makeTimerSource(queue: audioQueue)
+        timer?.schedule(deadline: .now(), repeating: 1.0)
+        timer?.setEventHandler { [weak self] in
+            guard let self = self else { return }
+
+            var totalDuration: CMTime = .zero
+            while let sampleBuffer = self.audioInput?.copyNextSampleBuffer() {
+                let increaseDuration = CMSampleBufferGetDuration(sampleBuffer)
+                NSLog("IOStream totalDuration = \(totalDuration) increaseDuration = \(increaseDuration)")
+                totalDuration = CMTimeAdd(totalDuration, increaseDuration)
+                self.append(sampleBuffer, track: 1)
+
+                if CMTimeGetSeconds(totalDuration) >= 1.0 {
+                    print("IOStream Audio read >= 1s, totalDuration = \(totalDuration), wait")
+                    break
+                }
+            }
+        }
+        timer?.resume()
+
+        if assetReader.status == .completed {
+            print("IOStream Audio processing completed.")
+        }
+    }
+
     /// Appends an AVAudioBuffer.
     /// - Parameters:
     ///   - audioBuffer:The audio buffer to append.

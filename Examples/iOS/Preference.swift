@@ -4,4 +4,6 @@ struct Preference: Sendable {
 
     var uri: String? = "rtmp://192.168.1.4/live"
     var streamName: String? = "live"
+    // var uri: String? = "rtmp://push-rtmp-hs-f5.douyincdn.com/third"
+    // var streamName: String? = ""
 }
