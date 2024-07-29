@@ -383,7 +383,7 @@ open class IOStream: NSObject {
     var assetReader: AVAssetReader?
     var audioInput: AVAssetReaderTrackOutput?
     let audioQueue = DispatchQueue(label: "audioQueue")
-    var timer: DispatchSourceTimer?
+    var timer: (any DispatchSourceTimer)?
 
     public func stopAppendAudio() {
         timer?.cancel()

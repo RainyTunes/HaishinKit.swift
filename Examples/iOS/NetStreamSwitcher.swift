@@ -108,6 +108,7 @@ final class NetStreamSwitcher {
             return
         }
         logger.info(code)
+        NSLog("rtmpStatusHandler code = \(code)")
         switch code {
         case RTMPConnection.Code.connectSuccess.rawValue:
             retryCount = 0
@@ -115,6 +116,7 @@ final class NetStreamSwitcher {
             case .playback:
                 (stream as? RTMPStream)?.play(Preference.defaultInstance.streamName!)
             case .ingest:
+                
                 (stream as? RTMPStream)?.publish(Preference.defaultInstance.streamName!)
             }
         case RTMPConnection.Code.connectFailed.rawValue, RTMPConnection.Code.connectClosed.rawValue:
